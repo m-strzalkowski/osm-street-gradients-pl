@@ -1,7 +1,7 @@
 # osm-street-gradients-pl
 Computing street gradients inside postgis on osm data and 'numeryczny model terenu'
 
-** PLAN **
+**PLAN**
 Skrypt (bash?)
 Dla zadanego obszaru (bounding box) i serwera postgis
 1. Założyć bazę (lub użyc podanej)
