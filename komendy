@@ -1,0 +1,6 @@
+Z zewnątrz:
+sudo psql -U postgres -p 5439 -h localhost -d osm
+Z kontenera drugiego:
+psql -U postgres -p 5432 -h postgis -d osm
+
+docker exec -it osm-street-gradients-pl-geotools-1 bash

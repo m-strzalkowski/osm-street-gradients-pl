@@ -1,0 +1,41 @@
+version: '3.8'
+services:
+  postgis:
+    image: postgis/postgis:16-master
+    #turn on logging every statement
+    #command: ["postgres", "-c", "log_statement=all", "-c", "log_destination=stderr", "-c" ,"log_duration=on"]
+    ports:
+      - "5439:5432"
+    environment:
+      POSTGRES_DB: osm
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_osm_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  geotools:
+    build:
+      context: .
+      dockerfile: Dockerfile.geotools
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      PGHOST: postgis
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: osm
+    volumes:
+      - ./scripts:/scripts
+      - .:/data
+    working_dir: /scripts
+    # This keeps the container idle so you can exec into it easily
+    command: ["tail", "-f", "/dev/null"]
+
+volumes:
+  postgres_osm_data:
