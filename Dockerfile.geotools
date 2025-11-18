@@ -5,6 +5,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         gdal-bin \
         python3-gdal \
+        osm2pgsql \
+        wget \
         && rm -rf /var/lib/apt/lists/*
 
 # Set a working directory for scripts

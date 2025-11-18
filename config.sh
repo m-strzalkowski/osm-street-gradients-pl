@@ -1,0 +1,11 @@
+PGHOST="localhost"
+PGPORT="5439"
+PGUSER="postgres"
+PGPASSWORD="postgres"
+PGDATABASE="osm"
+
+PGHOST="postgis"
+PGPORT="5432"
+# PGUSER="postgres"
+# PGPASSWORD="postgres"
+# PGDATABASE="osm"

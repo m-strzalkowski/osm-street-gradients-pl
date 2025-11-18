@@ -2,17 +2,7 @@
 set -euo pipefail
 
 # Database connection details
-PGHOST="localhost"
-PGPORT="5439"
-PGUSER="postgres"
-PGPASSWORD="postgres"
-PGDATABASE="osm"
-
-# PGHOST="postgis"
-# PGPORT="5432"
-# PGUSER="postgres"
-# PGPASSWORD="postgres"
-# PGDATABASE="osm"
+source config.sh
 export PGPASSWORD
 
 # === CREATE EXTENSION IF DON'T EXIST
@@ -62,11 +52,10 @@ echo " Bounding box transformed to EPSG:2180:"
 echo "  ULX=${ULX}, ULY=${ULY}"
 echo "  LRX=${LRX}, LRY=${LRY}"
 
-obrazki TIFF przychodzą z dziwnymi artefaktami projekcji...
 addr=\
-"https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/DigitalTerrainModel"\
+"https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/DigitalTerrainModelFormatTIFF"\
 "?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage"\
-"&COVERAGEID=DTM_PL-EVRF2007-NH"\
+"&COVERAGEID=DTM_PL-KRON86-NH_TIFF"\
 "&FORMAT=image/tiff"\
 "&SUBSETTINGCRS=EPSG:2180"\
 "&SUBSET=x($ULX,$LRX)&SUBSET=y($LRY,$ULY)"
@@ -91,7 +80,7 @@ RASTER_FILE="nmt.tif"
 # ##gdal_translate -a_srs EPSG:2180 nmt2.asc temp.tif
 # ##gdalwarp -t_srs EPSG:2180 -r bilinear temp.tif nmt_corrected.tif
 
-RASTER_FILE="nmt_corrected.tif"
+# RASTER_FILE="nmt_corrected.tif"
 
 export PGPASSWORD;
 echo "Dropping the target table $RASTER_TABLE if exists"
