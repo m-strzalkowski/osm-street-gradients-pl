@@ -23,6 +23,8 @@ if [ "$#" -ne 5 ]; then
 fi
 # EXAMPLE: ./download_nmt.sh 50.047 50.072 19.92 19.95 dtm
 #./download_nmt.sh 50.051961 50.057236 19.932168 19.938013 dtm
+#./download_nmt.sh 50.02667 50.08243 19.89064 19.96891 dtm
+
 LAT_MIN="$1"
 LAT_MAX="$2"
 LON_MIN="$3"
@@ -84,10 +86,10 @@ RASTER_FILE="nmt.tif"
 
 export PGPASSWORD;
 echo "Dropping the target table $RASTER_TABLE if exists"
-psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -c "DROP TABLE IF EXISTS $RASTER_TABLE;"
+psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" -c "DROP TABLE IF EXISTS $RASTER_TABLE CASCADE;"
 
 echo "Creating table and loading into it the raster file"
-raster2pgsql -s 2180 -I -C -M -t auto "${RASTER_FILE}" "public.${RASTER_TABLE}" | \
+raster2pgsql -s 2180 -Y -I -C -M -t auto "${RASTER_FILE}" "public.${RASTER_TABLE}" | \
   psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}"
 
 echo "Finished"
