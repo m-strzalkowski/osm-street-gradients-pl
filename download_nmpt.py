@@ -6,17 +6,34 @@ import subprocess
 import sys
 from urllib.parse import urlencode
 from urllib.request import urlretrieve
-
+import re
 from osgeo import osr
+
+from utils import  run_command
+from extract_multipart import extract_multipart
 
 # =========================
 # USER INPUT
 # =========================
 
-LAT_MIN = 50.04786869296248
-LAT_MAX = 50.05265631114086
-LON_MIN = 19.92424571666919
-LON_MAX = 19.934312066931237
+if len(sys.argv) == 1:
+    LAT_MIN = 50.04786869296248
+    LAT_MAX = 50.05265631114086
+    LON_MIN = 19.92424571666919
+    LON_MAX = 19.934312066931237
+    # #Kraków ograniczony obwodnicami
+    # LAT_MIN = 49.98990084121155
+    # LAT_MAX = 50.120513852136696
+    # LON_MIN = 19.798920671943563
+    # LON_MAX = 20.07638014022811
+    print('Using default coords')
+elif len(sys.argv) == 5:
+    LAT_MIN, LAT_MAX, LON_MIN, LON_MAX = sys.argv[1:5]
+else:
+    print('usage: download_nmpt <lat_min> <lat_max> <lon_min> <lon_max')
+    exit(1)
+#Will insert only these tiles which are already in the directory
+SKIP_DOWNLOAD = bool(os.getenv('SKIP_DOWNLOAD', False))
 
 TILE_SIZE = 1000  # meters
 OUT_DIR = "tiles"
@@ -103,14 +120,20 @@ def tile_generator(ulx, uly, lrx, lry, TILE_SIZE=TILE_SIZE):
     return
 
 downloaded_tiles = []
-for tile_num, (xmin, xmax, ymin, ymax) in enumerate(tile_generator(ulx, uly, lrx, lry)):
+tile_num=0
+for xmin, xmax, ymin, ymax in tile_generator(ulx, uly, lrx, lry):
+    tile_num+=1
     print('tile:', tile_num, (xmin, xmax, ymin, xmax))
-    tif_path = f"{OUT_DIR}/tile_{xmin}_{ymin}.asc"
+    tif_path = f"{OUT_DIR}/tile_{xmin}_{ymin}.tif"
 
     if os.path.exists(tif_path):
         log(f"Tile {tif_path} already exists, skipping download.")
         downloaded_tiles.append(tif_path)
         continue
+    if SKIP_DOWNLOAD:
+        log(f'SKIP_DOWNLOAD is set to 1: Skip tile {tif_path} entirely')
+        continue
+
     params = {
         "SERVICE": "WCS",
         "VERSION": "2.0.1",
@@ -133,18 +156,48 @@ for tile_num, (xmin, xmax, ymin, ymax) in enumerate(tile_generator(ulx, uly, lrx
     log(f"  will write to to {multipart_body_file}")
 
     try:
-        #urlretrieve(url, out_file)
+        urlretrieve(url, multipart_body_file)
         log("  Download OK")
     except Exception as e:
         log(f"  ERROR downloading tile: {e}")
-    from utils import  run_command
-
-    #Convert to GeoTiff
+    asc_file, _, prj_file = extract_multipart(multipart_body_file, OUT_DIR, expected_parts=['result.asc', 'result.asc.aux.xml', 'result.prj'])
     
-    
-    from extract_multipart import extract_multipart
-    extract_multipart(tif_path, OUT_DIR)
-    asc_file = OUT_DIR+"/result.tif"
+    #Convert to GeoTiff    
     run_command(f"gdal_translate -of GTiff -co COMPRESS=LZW {asc_file} {tif_path}")
-    run_command('gdalinfo {} | tail -n 6')#This fails if file is malformed
+    #Ensure it is a proper GeoTiff
+    tif_info = run_command(f'gdalinfo {tif_path} | tail -n 6')#This fails if file is malformed
+    if not re.search(r'Upper Left *\( *'+str(xmin)+r'\.?0*, *'+str(ymax)+r'\.?0*\)', tif_info):
+        os.rename(tif_path, tif_path+'_MALFORMED')
+        raise Exception("Upper left corner of tiff doesn't match expected:", xmin, ymax)
+    if not re.search(r'Lower Right *\( *'+str(xmax)+r'\.?0*, *'+str(ymin)+r'\.?0*\)', tif_info):
+        os.rename(tif_path, tif_path+'_MALFORMED')
+        raise Exception("Lower Right corner of tiff doesn't match expected:", xmax, ymin)  
     downloaded_tiles.append(tif_path)
+    log('Finished with tile ', tif_path)
+    log()
+    
+
+log(f'Downloaded {len(downloaded_tiles)} tiles')
+# upload to postgis
+# clean old rasters
+PGHOST=os.getenv('PGHOST', 'localhost')
+PGPORT=int(os.getenv('PGPORT', '5439'))
+PGUSER=os.getenv('PGUSER','postgres')
+PGDATABASE=os.getenv('PGDATABASE', 'osm')
+PGPASSWORD=os.getenv('PGPASSWORD', 'postgres')
+RASTER_TABLE='dtcm'
+os.environ['PGPASSWORD'] = PGPASSWORD
+
+log(f"Dropping the target table ${RASTER_TABLE} if exists")
+run_command(f' psql -h "{PGHOST}" -p "{PGPORT}" -U "{PGUSER}" -d "{PGDATABASE}" -c "DROP TABLE IF EXISTS {RASTER_TABLE} CASCADE;"')
+for i in 2,4,8,16:
+    run_command(f' psql -h "{PGHOST}" -p "{PGPORT}" -U "{PGUSER}" -d "{PGDATABASE}" -c "DROP TABLE IF EXISTS o_{i}_{RASTER_TABLE} CASCADE;"')
+
+#loading rasters
+i=0
+for raster_file in downloaded_tiles:
+    ini_opt = '-I ' if i==0 else '-a '
+    run_command(f'raster2pgsql -s 2180 -Y -M -l 2,4,8,16 {ini_opt}-t auto "{raster_file}" "public.{RASTER_TABLE}"'+
+                f' | psql -h "{PGHOST}" -p "{PGPORT}" -U "{PGUSER}" -d "{PGDATABASE}"')
+    i+=1
+log('Finished.')
