@@ -26,6 +26,11 @@ if len(sys.argv) == 1:
     # LAT_MAX = 50.120513852136696
     # LON_MIN = 19.798920671943563
     # LON_MAX = 20.07638014022811
+    #Południe Krakowa - tam gdzie podjazdy
+    LAT_MIN = 49.98944742300455
+    LAT_MAX = 50.069140407423106
+    LON_MIN = 19.807477376085956
+    LON_MAX = 19.998048150356652
     print('Using default coords')
 elif len(sys.argv) == 5:
     LAT_MIN, LAT_MAX, LON_MIN, LON_MAX = sys.argv[1:5]
@@ -36,7 +41,8 @@ else:
 SKIP_DOWNLOAD = bool(os.getenv('SKIP_DOWNLOAD', False))
 
 TILE_SIZE = 1000  # meters
-OUT_DIR = "tiles"
+SCALE_FACTOR = 0.25
+OUT_DIR = "tiles/nmpt0.25"
 
 WCS_BASE = "https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMPT/GRID1/WCS/DigitalSurfaceModel"
 COVERAGE_ID = "DSM_PL-KRON86-NH"
@@ -124,7 +130,7 @@ tile_num=0
 for xmin, xmax, ymin, ymax in tile_generator(ulx, uly, lrx, lry):
     tile_num+=1
     print('tile:', tile_num, (xmin, xmax, ymin, xmax))
-    tif_path = f"{OUT_DIR}/tile_{xmin}_{ymin}.tif"
+    tif_path = f"{OUT_DIR}/tile_{xmin}_{ymin}_{TILE_SIZE}_{SCALE_FACTOR}.tif"
 
     if os.path.exists(tif_path):
         log(f"Tile {tif_path} already exists, skipping download.")
@@ -141,6 +147,7 @@ for xmin, xmax, ymin, ymax in tile_generator(ulx, uly, lrx, lry):
         "COVERAGEID": COVERAGE_ID,
         "FORMAT": "image/x-aaigrid",
         "SUBSETTINGCRS": "EPSG:2180",
+        "SCALEFACTOR":str(SCALE_FACTOR),
         "SUBSET": [
             f"x({xmin},{xmax})",
             f"y({ymin},{ymax})"
