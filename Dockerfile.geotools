@@ -1,13 +1,39 @@
-FROM postgis/postgis:16-master
+FROM debian:bookworm-slim
 
-# Install GDAL and related tools
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Add PGDG repository for PostgreSQL 16
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        gdal-bin \
-        python3-gdal \
-        osm2pgsql \
         wget \
+        ca-certificates \
+        gnupg \
+        lsb-release \
         && rm -rf /var/lib/apt/lists/*
 
-# Set a working directory for scripts
-WORKDIR /scripts
+RUN echo "deb http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        gdal-bin \
+        postgis \
+        postgresql-client-16 \
+        osm2pgsql \
+        ca-certificates \
+        && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN python3 -m pip install --break-system-packages  --no-cache-dir --upgrade pip
+
+# Python libs
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+        numpy \
+        scipy \
+        matplotlib \
+        pillow \
+        rasterio
+
+WORKDIR /data

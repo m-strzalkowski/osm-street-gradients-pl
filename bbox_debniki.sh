@@ -1,0 +1,4 @@
+export LAT_MIN=50.04786
+export LAT_MAX=50.05265
+export LON_MIN=19.92424
+export LON_MAX=19.93431

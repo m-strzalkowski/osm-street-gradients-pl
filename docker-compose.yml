@@ -33,7 +33,7 @@ services:
     volumes:
       - ./scripts:/scripts
       - .:/data
-    working_dir: /scripts
+    working_dir: /data
     # This keeps the container idle so you can exec into it easily
     command: ["tail", "-f", "/dev/null"]
 
