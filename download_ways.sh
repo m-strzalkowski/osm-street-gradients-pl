@@ -22,6 +22,8 @@ LAT_MIN="$1"
 LAT_MAX="$2"
 LON_MIN="$3"
 LON_MAX="$4"
+bbox="$LAT_MIN $LAT_MAX $LON_MIN $LON_MAX"
+echo "bbox:" $bbox
 
 addr=\
 "http://overpass-api.de/api/interpreter"\
