@@ -12,7 +12,8 @@ CREATE TABLE slope_static (
     nmpt_doubt_a  DOUBLE PRECISION,
     nmpt_doubt_b  DOUBLE PRECISION,
     nmt_used_a INT,
-    nmt_used_b INT
+    nmt_used_b INT,
+    delta_h DOUBLE PRECISION
 );
 
 -- Recommended but optional
@@ -47,6 +48,8 @@ DECLARE
     nmt_used_end INT;
     h_start DOUBLE PRECISION;
     h_end DOUBLE PRECISION;
+    slope_frac DOUBLE PRECISION;
+    dh DOUBLE PRECISION;
 
 BEGIN
     -- Optional but usually desired
@@ -59,8 +62,6 @@ BEGIN
     FROM ways
     WHERE
         ways.name IS NOT NULL
-        AND ways.layer IS NULL
-        AND ways.bridge IS NULL
         AND kind IN (
             'primary', 'secondary', 'tertiary',
             'residential', 'living_street',
@@ -133,7 +134,7 @@ BEGIN
         IF doubt_nmpt_end IS NULL THEN CONTINUE; END IF;
 
         --ignore tunnels
-        IF rec.layer IS NOT NULL AND rec.layer < 0:
+        IF rec.layer IS NOT NULL AND rec.layer < 0
             THEN CONTINUE;
         END IF;
 
@@ -149,6 +150,15 @@ BEGIN
             ELSE h_end := h_nmt_end; nmt_used_end := 1;
         END IF;
 
+        dh := abs(h_start - h_end);
+        slope_frac := dh / st_length(rec.geom);
+
+        IF slope_frac > 0.5
+            THEN 
+            RAISE WARNING 'segment % on way % is ridiculuosly steep, slope: %, skipping as an error...', segment_counter, rec.way_id, slope_frac;
+            CONTINUE;
+        END IF;
+        
 
         /*
          * Insert computed values
@@ -159,6 +169,7 @@ BEGIN
             name,
             geom,
             slope,
+            delta_h,
             nmt_h_a,
             nmt_h_b,
             nmpt_h_a,
@@ -171,7 +182,8 @@ BEGIN
             rec.way_id,
             rec.name,
             rec.geom,
-            abs(h_start - h_end) / st_length(rec.geom),
+            slope_frac,
+            dh,
             h_nmt_start,
             h_nmt_end,
             h_nmpt_start,
@@ -180,18 +192,12 @@ BEGIN
             doubt_nmpt_end
         );
 
-        RAISE NOTICE '% way_id % slope % geom %',segment_counter, rec.way_id, h_nmt_start, ST_AsText(rec.geom);
-
         IF rec.way_id != previous_way_id /*I hate <>, != also works*/
             THEN 
             processed_ways := processed_ways + 1;
             processed_percent := (processed_ways::NUMERIC / total_ways_count)*100;
 
-            -- RAISE NOTICE '\r% (%/% ways)',
-            --     processed_percent,/*to_char(processed_percent, 'FM90D00'),*/
-            --     processed_ways,
-            --     total_ways_count;
-            RAISE NOTICE '% %% (% of % ways)', processed_percent, processed_ways, total_ways_count;
+            RAISE NOTICE '% %% (% of % ways)', to_char(processed_percent, 'FM999999990.00'), processed_ways, total_ways_count;
             previous_way_id := rec.way_id;
         END IF;
         segment_counter := segment_counter + 1;
