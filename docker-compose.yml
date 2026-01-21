@@ -32,7 +32,7 @@ services:
       PGDATABASE: osm
     volumes:
       - ./scripts:/scripts
-      - .:/data
+      - .:/data:z
     working_dir: /data
     # This keeps the container idle so you can exec into it easily
     command: ["tail", "-f", "/dev/null"]
