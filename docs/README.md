@@ -150,3 +150,21 @@ Wygląda to jakby każdy wewnętrzny kafalek na serwerze został źle zrzutowany
 
 Oficjalna dokumentacja (https://www.geoportal.gov.pl/pl/usluga/uslugi-pobierania-wcs/) opisuje adres jednie jako `	Numeryczny Model Pokrycia Terenu – Arc/Info ASCII Grid`, nie wspomina o obrazkach, które znalazły się w metadanych usługi wcs chyba przez przypadek.
 
+## Wyniki
+
+Wizualizacja nachylenia ulic w programie QGIS (`street-gradients-visualization.qgs`):
+![Nachylenie ulic](nachylenie.webp)
+Kropkami zaznaczone jest sto najbardziej stromych segmentów.
+
+
+Wizualizacja wyeksportowanego pliku GeoJSON (`viewer.html`):
+
+![Nachylenie ulic - GeoJSON](nachylenie-geojson.webp)
+
+
+Porównanie obliczenia nachylenia na podstawie NMT i NMPT:
+
+| NMT | NMPT | NMPT bez drzew |
+|-----|------|-----------------|
+| ![NMT](nmt.webp) | ![NMPT](nmpt.webp) | ![NMPT - bez drzew](nmpt_drzewa.webp) |
+
