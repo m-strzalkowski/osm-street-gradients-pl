@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>OSM Street Gradients</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.17.0/dist/maplibre-gl.css" />
+    <script src="https://unpkg.com/maplibre-gl@5.17.0/dist/maplibre-gl.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Helvetica Neue, Arial, Helvetica, sans-serif;
+            ;
+        }
+
+        html,
+        body,
+        #map {
+            height: 100%;
+        }
+
+        #map {
+            opacity: 0;
+            transition: opacity 0.5s ease-in;
+        }
+
+        .map-overlay {
+            font-size: 12px;
+            position: absolute;
+            width: 200px;
+            top: 0;
+            left: 0;
+            padding: 10px;
+        }
+
+        .map-overlay .map-overlay-inner {
+            background-color: #fff;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .map-overlay label {
+            display: block;
+            margin: 0 0 10px;
+        }
+
+        .map-overlay input {
+            background-color: transparent;
+            display: inline-block;
+            width: 100%;
+            position: relative;
+            margin: 0;
+            cursor: ew-resize;
+        }
+
+        .gradient-bar {
+            height: 12px;
+            width: 100%;
+            background: linear-gradient(to right in lab, #2ecc71, #f1c40f, #e67e22, #e74c3c, #8e44ad);
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.6rem;
+            color: #555;
+        }
+
+        #drop-area {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #f8f9fa;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #555;
+        }
+
+        .drop-content {
+            padding: 40px;
+            border-radius: 10px;
+            background: white;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="drop-area">
+        <div class="drop-content">
+            <span>Drag & Drop GeoJSON</span>
+            <p>or</p>
+            <input type="file" id="file-input" accept=".geojson,.json">
+        </div>
+    </div>
+    <div id="map"></div>
+    <div class="map-overlay top">
+        <div class="map-overlay-inner">
+            <label>Minimum Slope: <output id="slope-value">0</output>%</label>
+            <input id="slope-slider" type="range" min="0" max="25" step="0.5" value="0">
+        </div>
+        <div class="map-overlay-inner">
+            <div id="legend" class="legend">
+                <label>Legend</label>
+                <div class="gradient-bar"></div>
+                <div class="legend-labels">
+                    <span>0%</span>
+                    <span>5%</span>
+                    <span>10%</span>
+                    <span>15%</span>
+                    <span>20%+</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://tiles.openfreemap.org/styles/positron',
+        });
+        map.on('load', () => {
+            map.addSource('hillshadeSource', {
+                type: 'raster-dem',
+                url: 'https://tiles.mapterhorn.com/tilejson.json',
+            });
+
+            const firstSymbolId = (() => {
+                const layers = map.getStyle().layers;
+                let id;
+                for (const layer of layers) {
+                    if (layer.type === 'symbol') {
+                        id = layer.id;
+                        break;
+                    }
+                }
+                return id;
+            })();
+
+            map.addLayer({
+                id: 'hillshade',
+                source: 'hillshadeSource',
+                type: 'hillshade'
+            }, firstSymbolId);
+
+            setupDragAndDrop(firstSymbolId);
+            setupSlider();
+        });
+
+        function setupDragAndDrop(firstSymbolId) {
+            const dropArea = document.getElementById('drop-area');
+            const fileInput = document.getElementById('file-input');
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+            });
+
+            dropArea.addEventListener('dragenter', () => dropArea.style.backgroundColor = '#e9ecef', false);
+            dropArea.addEventListener('dragover', () => dropArea.style.backgroundColor = '#e9ecef', false);
+            dropArea.addEventListener('dragleave', () => dropArea.style.backgroundColor = '#f8f9fa', false);
+            dropArea.addEventListener('drop', () => dropArea.style.backgroundColor = '#f8f9fa', false);
+
+            dropArea.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFiles(files, firstSymbolId);
+            }, false);
+
+            fileInput.addEventListener('change', (e) => {
+                handleFiles(e.target.files, firstSymbolId);
+            });
+        }
+
+        function handleFiles(files, firstSymbolId) {
+            if (files.length === 0) return;
+            const file = files[0];
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    loadData(data, firstSymbolId);
+                    document.getElementById('drop-area').style.display = 'none';
+                    document.getElementById('map').style.opacity = 1;
+                } catch (error) {
+                    console.error('Error parsing GeoJSON:', error);
+                    alert('Invalid GeoJSON file');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function loadData(data, firstSymbolId) {
+            if (map.getSource('slopeSource')) {
+                map.getSource('slopeSource').setData(data);
+            } else {
+                map.addSource('slopeSource', {
+                    type: 'geojson',
+                    data: data
+                });
+
+                map.addLayer({
+                    id: 'slopeLayer',
+                    type: 'line',
+                    source: 'slopeSource',
+                    layout: {
+                        'line-join': 'round',
+                        'line-cap': 'round'
+                    },
+                    paint: {
+                        'line-color': [
+                            'interpolate-lab',
+                            ['linear'],
+                            ['get', 'slope'],
+                            0, '#2ecc71',
+                            0.05, '#f1c40f',
+                            0.10, '#e67e22',
+                            0.15, '#e74c3c',
+                            0.20, '#8e44ad'
+                        ],
+                        'line-width': 4
+                    }
+                }, firstSymbolId);
+
+                map.on('click', 'slopeLayer', (e) => {
+                    const properties = e.features[0].properties;
+                    const slopePercent = (properties.slope * 100).toFixed(2);
+                    new maplibregl.Popup()
+                        .setLngLat(e.lngLat)
+                        .setHTML(`<strong>${properties.name || 'Unnamed Street'}</strong><br>Slope: ${slopePercent}%`)
+                        .addTo(map);
+                });
+
+                map.on('mouseenter', 'slopeLayer', () => {
+                    map.getCanvas().style.cursor = 'pointer';
+                });
+
+                map.on('mouseleave', 'slopeLayer', () => {
+                    map.getCanvas().style.cursor = '';
+                });
+            }
+
+            const bounds = new maplibregl.LngLatBounds();
+            data.features.forEach(feature => {
+                if (feature.geometry.type === 'LineString') {
+                    feature.geometry.coordinates.forEach(coord => bounds.extend(coord));
+                }
+            });
+            if (!bounds.isEmpty()) {
+                map.fitBounds(bounds, { padding: 100, animate: false });
+            }
+        }
+
+        function setupSlider() {
+            const slopeSlider = document.getElementById('slope-slider');
+            const slopeValue = document.getElementById('slope-value');
+
+            slopeSlider.addEventListener('input', (e) => {
+                const minSlope = parseFloat(e.target.value) / 100;
+                slopeValue.textContent = e.target.value;
+
+                if (map.getLayer('slopeLayer')) {
+                    map.setFilter('slopeLayer', ['>=', ['get', 'slope'], minSlope]);
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
